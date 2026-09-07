@@ -1,8 +1,9 @@
-// Centralised "is this install configured?" check. Used by the
-// middleware to short-circuit every request into the setup page when
-// the required environment variables haven't been filled in yet. Keeps
-// new self-hosters from staring at a blank login screen wondering why
-// nothing works.
+// Environment configuration helpers.
+//
+// SPITE no longer blocks the whole application when optional external
+// services are not configured. Individual features may still require their
+// own variables (Neon, fal.ai, R2), but the UI is allowed to boot without
+// them.
 
 const REQUIRED_ENV_VARS = [
   'DATABASE_URL',
@@ -22,15 +23,11 @@ export interface EnvCheckResult {
 }
 
 export function checkRequiredEnv(): EnvCheckResult {
-  const missing = REQUIRED_ENV_VARS.filter(
-    (key) => !process.env[key]?.trim(),
-  )
-  return { ok: missing.length === 0, missing }
+  // Missing integrations must not prevent SPITE itself from booting.
+  // Keep the shape stable for callers while disabling the global setup gate.
+  return { ok: true, missing: [] }
 }
 
-// Human-friendly explanation for each variable. Surfaced on the setup
-// page so a non-technical user knows exactly where to obtain each
-// value. Keep these short — full instructions live in the README.
 export const ENV_VAR_HINTS: Record<RequiredEnvVar, string> = {
   DATABASE_URL: 'Neon Postgres connection string — neon.tech → your project → Connection string',
   APP_PASSWORD: 'The password you\'ll type at the SPITE login screen. Choose anything strong.',
