@@ -21,29 +21,18 @@ const PUBLIC_PATHS = [
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
 
-  // First gate: refuse to boot if required env vars are missing. Sends
-  // every request to /setup until the install is configured, so a
-  // self-hoster sees clear instructions instead of a broken-looking
-  // login screen. The /setup page itself, and Next.js static asset
-  // requests, are allowed through so the page can render.
-  const envCheck = checkRequiredEnv()
-  if (!envCheck.ok) {
-    if (pathname === '/setup' || pathname.startsWith('/_next/')) {
-      return NextResponse.next()
-    }
-    if (pathname.startsWith('/api/')) {
-      return NextResponse.json(
-        { error: 'Setup required', missing: envCheck.missing },
-        { status: 503 },
-      )
-    }
-    return NextResponse.redirect(new URL('/setup', request.url))
+  // Keep the env check call for compatibility, but missing integrations no
+  // longer block the application globally. Features that need Neon/fal/R2
+  // handle their own configuration when used.
+  checkRequiredEnv()
+
+  // APP_PASSWORD is optional in preview / UI-only installs. If it is absent,
+  // disable the global password gate instead of trapping the app on /login.
+  if (!process.env.APP_PASSWORD?.trim()) {
+    return NextResponse.next()
   }
 
-  // Second gate: validate the session token against the sessions table.
-  // The cookie value is now a random 256-bit token, not a static
-  // string, so a captured cookie can be invalidated server-side by
-  // logout / expiry.
+  // Validate the session token against the sessions table.
   const token = request.cookies.get(SESSION_COOKIE_NAME)?.value
   const isAuthenticated = await isSessionValid(token)
 
@@ -78,9 +67,7 @@ export const config = {
     // Run on everything except Next.js internals and static asset files.
     // The image-extension exemption is anchored to `$` — paths like
     // `/api/r2-image/foo.png/extra` still go through middleware because
-    // they don't END in an image extension. Without the anchor, any
-    // route containing `.png` (or .svg, .jpg, etc.) anywhere in its
-    // path would silently skip authz.
+    // they don't END in an image extension.
     '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)',
   ],
 }
